@@ -1,0 +1,208 @@
+#include <LiquidCrystal_I2C.h>
+
+//*********** LCD DISPLAY *****************
+LiquidCrystal_I2C lcd(0x3F, 2, 1, 0, 4, 5, 6, 7, 3, POSITIVE);
+
+
+// Hall Sensor code 
+#define hall 3 // pin 3 for  sensor
+
+float speedBike = 0.00;
+float distanceBike = 0.00;
+float radius = 0.3;// tire radius (in meters)
+float circumference;
+long timer;// time between one full rotation (in ms)
+
+float langi=6.078974,;
+float latitu=80.192126;
+
+int dis=0;
+int speed1=0;
+int lan=0;
+int lat=0;
+
+
+int maxCounter = 100;//min time (in ms) of one rotation (for debouncing)
+int Counter;
+
+
+int hallValue;
+
+
+
+unsigned long previousMillis1 = 0; 
+unsigned long previousMillis2 = 0;  
+
+
+
+long OnTime2=5000;
+long OnTime1=1000;
+
+
+
+
+
+#include "TinyGPS++.h"
+#include "SoftwareSerial.h"
+
+SoftwareSerial serial_connection(10, 11); //RX=pin 10, TX=pin 11
+TinyGPSPlus gps;//This is the GPS object that will pretty much do all the grunt work with the NMEA data
+
+void setup() {
+   Serial.begin(115200);  
+
+//Serial.begin(9600);//This opens up communications to the Serial monitor in the Arduino IDE
+  serial_connection.begin(9600);//This opens up communications to the GPS
+  
+  lcd.begin(20,4);
+  lcd.home (); 
+  lcd.setCursor(5,1);
+  lcd.print("Speedometer");
+  delay(1000);
+   
+  Counter = maxCounter;
+  circumference = 2*3.14*radius;
+
+  
+  pinMode(hall, INPUT);//define detect input pin
+
+  cli();//stop interrupts
+
+  //set timer1 interrupt at 1kHz
+  TCCR1A = 0;// set entire TCCR1A register to 0
+  TCCR1B = 0;// same for TCCR1B
+  TCNT1  = 0;
+  // set timer count for 1khz increments
+  OCR1A = 1999;// = (1/1000) / ((1/(16*10^6))*8) - 1
+  // turn on CTC mode
+  TCCR1B |= (1 << WGM12);
+  // Set CS11 bit for 8 prescaler
+  TCCR1B |= (1 << CS11);
+  // enable timer compare interrupt
+  TIMSK1 |= (1 << OCIE1A);
+
+  sei();//allow interrupts
+  
+  //----------------END TIMER SETUP---------------------------------
+}
+
+
+
+
+//------------------- INTERRUPT------------------------------------------
+float previous=HIGH;
+ISR(TIMER1_COMPA_vect) {//Interrupt at freq of 1kHz
+  hallValue = digitalRead(hall);
+ 
+  if (hallValue ==LOW&&previous!=LOW){
+    previous=hallValue;
+    if (Counter == 0){  //min time between pulses has passed
+      distanceBike=float(circumference)+ distanceBike;
+
+      
+      speedBike = (3600*float(circumference))/float(timer);   //calculate kilometers per hour
+      timer = 0;//reset timer
+      Counter = maxCounter;//reset Counter
+    }
+    else{
+      if (Counter > 0){//don't let Counter go negative
+        Counter -= 1;//decrement Counter
+      }
+    }
+  }
+  else{
+  previous=hallValue;
+    if (Counter > 0){
+      Counter -= 1;//decrement Counter
+    }
+  
+  }
+  if (timer > 2000){
+    speedBike = 0;//if no new pulses from reed switch- tire is still, set mph to 0
+//    distanceBike=0;
+  }
+  else{
+    timer += 1;//increment timer
+  } 
+}
+
+
+void displayMPH(){
+  lcd.clear();
+  lcd.setCursor(5,0);
+  lcd.print("Speedometer");
+  
+   lcd.setCursor(0,1);
+  lcd.print("Distance:");
+
+  lcd.setCursor(10,1);
+  lcd.print(distanceBike);
+
+   lcd.setCursor(16,1);
+  lcd.print("m");
+  
+  lcd.setCursor(0,2);
+  lcd.print("Speed:");
+
+  lcd.setCursor(7,2);
+  lcd.print(speedBike);
+
+    lcd.setCursor(12,2);
+  lcd.print("kmh-1");
+
+}
+
+void loop() {
+  unsigned long currentMillis = millis();
+
+   if(currentMillis - previousMillis1 >= OnTime1)
+   {
+    displayMPH();
+    previousMillis1 = currentMillis; 
+    
+    }
+     if(currentMillis - previousMillis2 >= OnTime2)
+     {
+      
+  dis=(int)distanceBike;
+  speed1=(int)speedBike;
+
+
+
+//Serial.println(latitu*10.00);
+String k=String(latitu);
+Serial.println(speedBike,3);
+//Serial.flush();
+  
+Serial.println(latitu,6);
+//Serial.flush();
+Serial.println(langi,6);
+//Serial.flush();
+Serial.println(distanceBike,3);
+Serial.flush();
+         previousMillis2 = currentMillis; 
+      }
+  
+  
+
+
+ if(serial_connection.available())//While there are characters to come from the GPS
+  {
+    gps.encode(serial_connection.read());//This feeds the serial NMEA data into the library one char at a time
+  }
+  if(gps.location.isUpdated())//This will pretty much be fired all the time anyway but will at least reduce it to only after a package of NMEA data comes in
+  {
+    //Get the latest info from the gps object which it derived from the data sent by the GPS unit
+
+   latitu= gps.location.lat();
+  langi=  gps.location.lng();
+
+  }
+  
+  
+
+
+//  delay(5000);
+
+ 
+}
