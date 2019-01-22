@@ -1,0 +1,82 @@
+
+
+// FirebaseDemo_ESP8266 is a sample that demo the different functions
+// of the FirebaseArduino API.
+#include "Arduino.h"
+#include <ESP8266WiFi.h>
+#include <FirebaseArduino.h>
+
+// Set these to run example.
+#define FIREBASE_HOST ""// insert the firebase host
+#define FIREBASE_AUTH ""//fire base key
+#define WIFI_SSID "test2"
+#define WIFI_PASSWORD "11111111"
+
+int speed1=0;
+float lan=0;
+float lat=0;
+float dis=0;
+void setup() {
+    Serial.begin(115200);   
+
+  // connect to wifi.
+  WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+
+  while (WiFi.status() != WL_CONNECTED) {
+
+    delay(500);
+  }
+
+  
+  Firebase.begin(FIREBASE_HOST, FIREBASE_AUTH);
+}
+
+   String s1="";
+
+     String s2="";
+
+    String s3="";
+char sz[] = "Here; is some; sample;100;data;1.414;1020";
+    String s4="";
+String serialResponse = "";
+String text[4];
+void loop() {
+
+int i=0;
+ while ( Serial.available()) {
+    serialResponse = Serial.readStringUntil('\r\n');
+
+    // Convert from String Object to String.
+    char buf[sizeof(sz)];
+    serialResponse.toCharArray(buf, sizeof(buf));
+    char *p = buf;
+    char *str;
+    while ((str = strtok_r(p, ";", &p)) != NULL) // delimiter is the semicolon
+     text[i]=str;
+     i=i+1;
+
+    
+      
+  }
+
+
+
+
+    Firebase.setString("lng", text[2].substring(0,8));
+
+  
+
+  Firebase.setString("lat", text[1].substring(0,9));
+
+  
+
+  Firebase.setString("data", text[0].substring(0,4));
+
+
+  Firebase.setString("dis", text[3].substring(0,4));
+
+  
+ 
+    }
+
+  
